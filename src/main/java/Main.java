@@ -23,9 +23,9 @@ import edu.wpi.cscore.MjpegServer;
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.cscore.VideoSource;
 import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.NetworkTableEntry;
-import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.vision.VisionPipeline;
 import edu.wpi.first.vision.VisionThread;
 
@@ -217,28 +217,32 @@ public final class Main {
     private double[][] angle;
     private double minSize;
     private CvSource cvSource;
+    private List<RotatedRect> outputRects;
 
     public ReflectiveTapePipeline() {
       this.hsvValues = new int[3][2];
       this.hwRatio = new double[2];
       this.angle = new double[2][2];
       this.minSize = 0.0;
-      this.cvSource = CameraServer.getInstance().putVideo(name, height, width);
+      this.outputRects = new ArrayList<RotatedRect>();
+      this.cvSource = CameraServer.getInstance().putVideo("Default name", 680, 480);
     }
-    public ReflectiveTapePipeline(int[][] hsvValues, double[] hwRatio, double[][] angle, double minSize, double height, double width, String name) {
+    public ReflectiveTapePipeline(int[][] hsvValues, double[] hwRatio, double[][] angle, double minSize, int height, int width, String name) {
       this.hsvValues = hsvValues.clone();
       this.hwRatio = hwRatio.clone();
       this.angle = angle.clone();
       this.minSize = minSize;
+      this.outputRects = new ArrayList<RotatedRect>();
       this.cvSource = CameraServer.getInstance().putVideo(name, height, width);
     }
     @Override
     public void process(Mat mat) {
-      Mat hsv;
-      List<MatOfPoint> contours;
-      Mat hierarchy;
+      Mat hsv = new Mat();
+      List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+      Mat hierarchy = new Mat();
       int contourMode, contourMethod;
-      List<RotatedRect> boundingBoxes;
+      List<RotatedRect> boundingBoxes = new ArrayList<RotatedRect>();
+      List<MatOfPoint> contourDraw = new ArrayList<MatOfPoint>();
       Mat tempForDrawing;
       try {
         Imgproc.cvtColor(mat, hsv, Imgproc.COLOR_BGR2HSV);
@@ -253,11 +257,10 @@ public final class Main {
       contourMode = Imgproc.RETR_EXTERNAL;
       contourMethod = Imgproc.CHAIN_APPROX_SIMPLE;
       try {
-        Imgproc.findContours(hsv, contours, hierarchy, countourMode, contourMethod);
+        Imgproc.findContours(hsv, contours, hierarchy, contourMode, contourMethod);
       } catch(CvException e) {
         System.out.println(e);
       }
-      contours2f = new ArrayList<MatOfPoint2f>();
       for(int i = 0; i < contours.size(); i++) {
         boundingBoxes.add(Imgproc.minAreaRect(new MatOfPoint2f(contours.get(i).toArray())));
       }
@@ -270,17 +273,19 @@ public final class Main {
           boundingBoxes.remove(i);
           i--;
         }
-        if((boundingBoxes.get(i).angle < angle[0][0] || boundingBoxes.get(i) > angle[0][1]) && (boundingBoxes.get(i).angle < angle[1][0] || boundingBoxes.get(i) > angle[1][1])) {
+        if((boundingBoxes.get(i).angle < angle[0][0] || boundingBoxes.get(i).angle > angle[0][1]) && (boundingBoxes.get(i).angle < angle[1][0] || boundingBoxes.get(i).angle > angle[1][1])) {
           boundingBoxes.remove(i);
           i--;
         }
       }
       for(int i = 0; i < boundingBoxes.size(); i++) {
         tempForDrawing = new Mat();
-        Imgproc.boxPoints(tempForDrawing);
-        Imgproc.drawContours(mat, new MatOfPoint(tempForDrawing), 0, new Scaler(0,0,255));
+        Imgproc.boxPoints(boundingBoxes.get(i),tempForDrawing);
+        contourDraw.add(new MatOfPoint(tempForDrawing));
       }
+      Imgproc.drawContours(mat, contourDraw, 0, new Scalar(0,0,255));
       cvSource.putFrame(mat);
+      outputRects = boundingBoxes;
     }
 
     public void process(Mat mat, boolean compute) {
@@ -291,10 +296,15 @@ public final class Main {
       }
     }
     
-    public void setValues(int[][] hsvValues, double[] hwRatio, double[][] angle, double minSize, double height, double width) {
+    public void setValues(int[][] hsvValues, double[] hwRatio, double[][] angle, double minSize) {
       this.hsvValues = hsvValues.clone();
       this.hwRatio = hwRatio.clone();
       this.angle = angle.clone();
+      this.minSize = minSize;
+    }
+
+    public List<RotatedRect> getRectangles() {
+      return outputRects;
     }
   }
 
@@ -317,7 +327,7 @@ public final class Main {
       this.hwRatio = new double[2];
       this.angle = new double[2][2];
       this.minSize = 0.0;
-      this.exposure = -1;
+      this.exposure = 1;
       this.camera = camera;
       this.pipeline = pipeline;
       this.cvSink = CameraServer.getInstance().getVideo(camera);
@@ -365,7 +375,7 @@ public final class Main {
         camera.setExposureManual(exposure);
         ringlight.forceSetBoolean(true);
       }
-      pipeline.setValues(hsvValues, hwRatio, angle, minSize, height, width);
+      pipeline.setValues(hsvValues, hwRatio, angle, minSize);
       if(img.width() != 0) {
         if(exposure < 0 || exposure > 100) {
           pipeline.process(img, false);
@@ -373,7 +383,6 @@ public final class Main {
           pipeline.process(img, true);
         }
       } else {
-        System.out.println("No image");
       }
     }
   }
