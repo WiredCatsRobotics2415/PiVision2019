@@ -217,14 +217,12 @@ public final class Main {
     private double[][] angle;
     private double minSize;
     private CvSource cvSource;
-    private List<RotatedRect> outputRects;
 
     public ReflectiveTapePipeline() {
       this.hsvValues = new int[3][2];
       this.hwRatio = new double[2];
       this.angle = new double[2][2];
       this.minSize = 0.0;
-      this.outputRects = new ArrayList<RotatedRect>();
       this.cvSource = CameraServer.getInstance().putVideo("Default name", 680, 480);
     }
     public ReflectiveTapePipeline(int[][] hsvValues, double[] hwRatio, double[][] angle, double minSize, int height, int width, String name) {
@@ -232,7 +230,6 @@ public final class Main {
       this.hwRatio = hwRatio.clone();
       this.angle = angle.clone();
       this.minSize = minSize;
-      this.outputRects = new ArrayList<RotatedRect>();
       this.cvSource = CameraServer.getInstance().putVideo(name, height, width);
     }
     @Override
@@ -285,7 +282,6 @@ public final class Main {
       }
       Imgproc.drawContours(mat, contourDraw, 0, new Scalar(0,0,255));
       cvSource.putFrame(mat);
-      outputRects = boundingBoxes;
     }
 
     public void process(Mat mat, boolean compute) {
@@ -303,8 +299,15 @@ public final class Main {
       this.minSize = minSize;
     }
 
-    public List<RotatedRect> getRectangles() {
-      return outputRects;
+    private void sortRects(List<RotatedRect> rects, List<RotatedRect> left, List<RotatedRect> right) {
+      for(int i = 0; i < rects.size(); i++) {
+        if(rects.get(i).angle > angle[0][0] && rects.get(i).angle < angle[0][1]) {
+          left.add(rects.get(i));
+        } 
+        if(rects.get(i).angle > angle[1][0] && rects.get(i).angle < angle[1][1]) {
+          right.add(rects.get(i));
+        }
+      }
     }
   }
 
@@ -383,9 +386,11 @@ public final class Main {
           pipeline.process(img, true);
         }
       } else {
+        System.out.println("no image");
       }
     }
   }
+
   /**
    * Main.
    */
