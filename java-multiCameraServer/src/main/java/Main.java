@@ -30,6 +30,7 @@ import edu.wpi.first.vision.VisionPipeline;
 import edu.wpi.first.vision.VisionThread;
 
 import org.opencv.core.Core;
+import org.opencv.core.Point;
 import org.opencv.core.CvException;
 import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
@@ -247,7 +248,7 @@ public final class Main {
         System.out.println(e);
       }
       try {
-        Core.inRange(hsv, new Scalar(hsvValues[0][0], hsvValues[1][0], hsvValues[2][0]), new Scalar(hsvValues[0][0], hsvValues[1][1], hsvValues[2][1]), hsv);
+        Core.inRange(hsv, new Scalar(hsvValues[0][0], hsvValues[1][0], hsvValues[2][0]), new Scalar(hsvValues[0][1], hsvValues[1][1], hsvValues[2][1]), hsv);
       } catch(CvException e) {
         System.out.println(e);
       }
@@ -263,24 +264,38 @@ public final class Main {
       }
       for(int i = 0; i < boundingBoxes.size(); i++) {
         if(boundingBoxes.get(i).size.area() < minSize) {
+          System.out.println("failed 1");
+          System.out.println(""+boundingBoxes.get(i).size.height+" "+boundingBoxes.get(i).size.width);
+          System.out.println(""+hwRatio[1]+" "+hwRatio[0]);
           boundingBoxes.remove(i);
           i--;
         }
-        if(boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width < hwRatio[0] || boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width > hwRatio[1]) {
+        else if(boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width < hwRatio[1] || boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width > hwRatio[0]) {
+          System.out.println("failed 2");
+          System.out.println(""+boundingBoxes.get(i).size.height+" "+boundingBoxes.get(i).size.width);
+          System.out.println(""+hwRatio[1]+" "+hwRatio[0]);
           boundingBoxes.remove(i);
           i--;
         }
-        if((boundingBoxes.get(i).angle < angle[0][0] || boundingBoxes.get(i).angle > angle[0][1]) && (boundingBoxes.get(i).angle < angle[1][0] || boundingBoxes.get(i).angle > angle[1][1])) {
+        else if((boundingBoxes.get(i).angle < angle[0][0] || boundingBoxes.get(i).angle > angle[0][1]) && (boundingBoxes.get(i).angle < angle[1][0] || boundingBoxes.get(i).angle > angle[1][1])) {
           boundingBoxes.remove(i);
           i--;
         }
       }
+      double x,y,width,height;
       for(int i = 0; i < boundingBoxes.size(); i++) {
-        tempForDrawing = new Mat();
+        x = boundingBoxes.get(i).center.x;
+        y = boundingBoxes.get(i).center.y;
+        width = boundingBoxes.get(i).size.width;
+        height = boundingBoxes.get(i).size.height;
+        //System.out.println(""+x+" "+y);
+        /*tempForDrawing = new Mat();
         Imgproc.boxPoints(boundingBoxes.get(i),tempForDrawing);
-        contourDraw.add(new MatOfPoint(tempForDrawing));
+        contourDraw.add(new MatOfPoint(tempForDrawing));*/
+        Imgproc.rectangle(mat, new Point(x-(width/2),y-(height/2)), new Point(x+(width/2),y+(height/2)), new Scalar(0,255,255), 1);
       }
-      Imgproc.drawContours(mat, contourDraw, 0, new Scalar(0,0,255));
+      Imgproc.drawContours(mat, contours, 0, new Scalar(0,0,255));
+      //Imgproc.cvtColor(hsv, tester, Imgproc.COLOR_2BGR);
       cvSource.putFrame(mat);
     }
 
@@ -351,10 +366,26 @@ public final class Main {
       this.minSizeEntry = table.getEntry("minSizeEntry");
       this.exposureEntry = table.getEntry("exposureEntry");
       this.ringlight = table.getEntry("ringlight");
+      hsvHMin.setDefaultDouble(hsvValues[0][0]);
+      hsvHMax.setDefaultDouble(hsvValues[0][1]);
+      hsvSMin.setDefaultDouble(hsvValues[1][0]);
+      hsvSMax.setDefaultDouble(hsvValues[1][1]);
+      hsvVMin.setDefaultDouble(hsvValues[2][0]);
+      hsvVMax.setDefaultDouble(hsvValues[2][1]);
+      hwRatioMin.setDefaultDouble(hwRatio[0]);
+      hwRatioMax.setDefaultDouble(hwRatio[1]);
+      angle1Min.setDefaultDouble(angle[0][0]);
+      angle1Max.setDefaultDouble(angle[0][1]);
+      angle2Min.setDefaultDouble(angle[1][0]);
+      angle2Max.setDefaultDouble(angle[1][1]);
+      minSizeEntry.setDefaultDouble(minSize);
+      exposureEntry.setDefaultDouble(exposure);
+      System.out.println("intitiated");
       inst.startClientTeam(2415);
     }
     @Override
     public void run() {
+      while(true) {
       Mat img = new Mat();
       cvSink.grabFrame(img);
       hsvValues[0][0] = (int)Math.round(hsvHMin.getDouble(hsvValues[0][0]));
@@ -362,9 +393,9 @@ public final class Main {
       hsvValues[1][0] = (int)Math.round(hsvSMin.getDouble(hsvValues[1][0]));
       hsvValues[1][1] = (int)Math.round(hsvSMax.getDouble(hsvValues[1][1]));
       hsvValues[2][0] = (int)Math.round(hsvVMin.getDouble(hsvValues[2][0]));
-      hsvValues[2][1] = (int)Math.round(hwRatioMin.getDouble(hsvValues[2][1]));
+      hsvValues[2][1] = (int)Math.round(hsvVMax.getDouble(hsvValues[2][1]));
       hwRatio[0] = hwRatioMin.getDouble(hwRatio[0]);
-      hwRatio[1] = hwRatioMin.getDouble(hwRatio[1]);
+      hwRatio[1] = hwRatioMax.getDouble(hwRatio[1]);
       angle[0][0] = angle1Min.getDouble(angle[0][0]);
       angle[0][1] = angle1Max.getDouble(angle[0][1]);
       angle[1][0] = angle2Min.getDouble(angle[1][0]);
@@ -387,6 +418,7 @@ public final class Main {
         }
       } else {
         System.out.println("no image");
+      }
       }
     }
   }
@@ -422,7 +454,7 @@ public final class Main {
 
     // start image processing on camera 0 if present
     if (cameras.size() >= 1) {
-      PipelineTuner pipeline = new PipelineTuner(cameras.get(0), new ReflectiveTapePipeline(), "Camera0");
+      PipelineTuner pipeline = new PipelineTuner(cameras.get(0), new ReflectiveTapePipeline(), "CameraHi");
       /* something like this for GRIP:
       VisionThread visionThread = new VisionThread(cameras.get(0),
               new GripPipeline(), pipeline -> {
