@@ -214,19 +214,19 @@ public final class Main {
    */
   public static class ReflectiveTapePipeline implements VisionPipeline {
     private int[][] hsvValues;
-    private double[] hwRatio;
+    private double[][] hwRatio;
     private double[][] angle;
     private double minSize;
     private CvSource cvSource;
 
     public ReflectiveTapePipeline() {
       this.hsvValues = new int[3][2];
-      this.hwRatio = new double[2];
+      this.hwRatio = new double[2][2];
       this.angle = new double[2][2];
       this.minSize = 0.0;
       this.cvSource = CameraServer.getInstance().putVideo("Default name", 680, 480);
     }
-    public ReflectiveTapePipeline(int[][] hsvValues, double[] hwRatio, double[][] angle, double minSize, int height, int width, String name) {
+    public ReflectiveTapePipeline(int[][] hsvValues, double[][] hwRatio, double[][] angle, double minSize, int height, int width, String name) {
       this.hsvValues = hsvValues.clone();
       this.hwRatio = hwRatio.clone();
       this.angle = angle.clone();
@@ -264,36 +264,50 @@ public final class Main {
       }
       for(int i = 0; i < boundingBoxes.size(); i++) {
         if(boundingBoxes.get(i).size.area() < minSize) {
-          System.out.println("failed 1");
-          System.out.println(""+boundingBoxes.get(i).size.height+" "+boundingBoxes.get(i).size.width);
-          System.out.println(""+hwRatio[1]+" "+hwRatio[0]);
+          //System.out.println("failed 1");
+          //System.out.println(""+boundingBoxes.get(i).size.height+" "+boundingBoxes.get(i).size.width);
+          //System.out.println(""+hwRatio[1]+" "+hwRatio[0]);
           boundingBoxes.remove(i);
           i--;
+          continue;
         }
-        else if(boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width < hwRatio[1] || boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width > hwRatio[0]) {
-          System.out.println("failed 2");
-          System.out.println(""+boundingBoxes.get(i).size.height+" "+boundingBoxes.get(i).size.width);
-          System.out.println(""+hwRatio[1]+" "+hwRatio[0]);
-          boundingBoxes.remove(i);
-          i--;
+        if(boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width < hwRatio[0][1] && boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width > hwRatio[0][0]) {
+          //System.out.println("failed 2");
+          //System.out.println(""+boundingBoxes.get(i).size.height+" "+boundingBoxes.get(i).size.width);
+          //System.out.println(""+hwRatio[1]+" "+hwRatio[0]);
+          if(boundingBoxes.get(i).angle < angle[0][1] && boundingBoxes.get(i).angle > angle[0][0]) {
+            continue;
+          }
         }
-        else if((boundingBoxes.get(i).angle < angle[0][0] || boundingBoxes.get(i).angle > angle[0][1]) && (boundingBoxes.get(i).angle < angle[1][0] || boundingBoxes.get(i).angle > angle[1][1])) {
-          boundingBoxes.remove(i);
-          i--;
+        if(boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width < hwRatio[1][1] && boundingBoxes.get(i).size.height/boundingBoxes.get(i).size.width > hwRatio[1][0]) {
+          //System.out.println("failed 2");
+          //System.out.println(""+boundingBoxes.get(i).size.height+" "+boundingBoxes.get(i).size.width);
+          //System.out.println(""+hwRatio[1]+" "+hwRatio[0]);
+          if(boundingBoxes.get(i).angle < angle[1][1] && boundingBoxes.get(i).angle > angle[1][0]) {
+            continue;
+          }
         }
+        boundingBoxes.remove(i);
+        i--;
       }
-      double x,y,width,height;
+      double x,y,width,height,angle;
+      double dHeightX, dHeightY, dWidthX, dWidthY;
+      List<MatOfPoint> points = new ArrayList<MatOfPoint>();
       for(int i = 0; i < boundingBoxes.size(); i++) {
         x = boundingBoxes.get(i).center.x;
         y = boundingBoxes.get(i).center.y;
         width = boundingBoxes.get(i).size.width;
         height = boundingBoxes.get(i).size.height;
-        //System.out.println(""+x+" "+y);
-        /*tempForDrawing = new Mat();
-        Imgproc.boxPoints(boundingBoxes.get(i),tempForDrawing);
-        contourDraw.add(new MatOfPoint(tempForDrawing));*/
+        angle = boundingBoxes.get(i).angle;
+        dHeightX = Math.cos(angle/90.0*Math.PI)*height/2;
+        dHeightY = Math.sin(angle/90.0*Math.PI)*height/2;
+        dWidthX = Math.sin(angle/90.0*Math.PI)*width/2;
+        dWidthY = Math.cos(angle/90.0*Math.PI)*width/2;
+        points.add(new MatOfPoint(new Point(x+dHeightX-dWidthX,y+dHeightY+dWidthY),new Point(x+dHeightX+dWidthX,y+dHeightY-dWidthY),new Point(x-dHeightX+dWidthX,y-dHeightY-dWidthY),new Point(x-dHeightX-dWidthX,y-dHeightY+dWidthY)));
         Imgproc.rectangle(mat, new Point(x-(width/2),y-(height/2)), new Point(x+(width/2),y+(height/2)), new Scalar(0,255,255), 1);
       }
+      System.out.println(points.size());
+      Imgproc.polylines(mat, points, true, new Scalar(0,255,0));
       Imgproc.drawContours(mat, contours, 0, new Scalar(0,0,255));
       //Imgproc.cvtColor(hsv, tester, Imgproc.COLOR_2BGR);
       cvSource.putFrame(mat);
@@ -307,7 +321,7 @@ public final class Main {
       }
     }
     
-    public void setValues(int[][] hsvValues, double[] hwRatio, double[][] angle, double minSize) {
+    public void setValues(int[][] hsvValues, double[][] hwRatio, double[][] angle, double minSize) {
       this.hsvValues = hsvValues.clone();
       this.hwRatio = hwRatio.clone();
       this.angle = angle.clone();
@@ -328,13 +342,13 @@ public final class Main {
 
   public static class PipelineTuner extends Thread {
     private int[][] hsvValues;
-    private double[] hwRatio;
+    private double[][] hwRatio;
     private double[][] angle;
     private double minSize;
     private int exposure;
     private UsbCamera camera;
     private ReflectiveTapePipeline pipeline;
-    private NetworkTableEntry hsvHMin,hsvHMax,hsvSMin,hsvSMax,hsvVMin,hsvVMax,hwRatioMin,hwRatioMax,angle1Min,angle1Max,angle2Min,angle2Max,minSizeEntry, exposureEntry, ringlight;
+    private NetworkTableEntry hsvHMin,hsvHMax,hsvSMin,hsvSMax,hsvVMin,hsvVMax,hwRatio1Min,hwRatio1Max,hwRatio2Min,hwRatio2Max,angle1Min,angle1Max,angle2Min,angle2Max,minSizeEntry, exposureEntry, ringlight;
     private CvSink cvSink;
     private String name;
 
@@ -342,7 +356,7 @@ public final class Main {
       super(name);
       this.name = name;
       this.hsvValues = new int[3][2];
-      this.hwRatio = new double[2];
+      this.hwRatio = new double[2][2];
       this.angle = new double[2][2];
       this.minSize = 0.0;
       this.exposure = 1;
@@ -357,8 +371,10 @@ public final class Main {
       this.hsvSMax = table.getEntry("hsvSMax");
       this.hsvVMin = table.getEntry("hsvVMin");
       this.hsvVMax = table.getEntry("hsvVMax");
-      this.hwRatioMin = table.getEntry("hwRatioMin");
-      this.hwRatioMax = table.getEntry("hwRatioMax");
+      this.hwRatio1Min = table.getEntry("hwRatio1Min");
+      this.hwRatio1Max = table.getEntry("hwRatio1Max");
+      this.hwRatio2Min = table.getEntry("hwRatio2Min");
+      this.hwRatio2Max = table.getEntry("hwRatio2Max");
       this.angle1Min = table.getEntry("angle1Min");
       this.angle1Max = table.getEntry("angle1Max");
       this.angle2Min = table.getEntry("angle2Min");
@@ -372,8 +388,10 @@ public final class Main {
       hsvSMax.setDefaultDouble(hsvValues[1][1]);
       hsvVMin.setDefaultDouble(hsvValues[2][0]);
       hsvVMax.setDefaultDouble(hsvValues[2][1]);
-      hwRatioMin.setDefaultDouble(hwRatio[0]);
-      hwRatioMax.setDefaultDouble(hwRatio[1]);
+      hwRatio1Min.setDefaultDouble(hwRatio[0][0]);
+      hwRatio1Max.setDefaultDouble(hwRatio[0][1]);
+      hwRatio2Min.setDefaultDouble(hwRatio[1][0]);
+      hwRatio2Max.setDefaultDouble(hwRatio[1][1]);
       angle1Min.setDefaultDouble(angle[0][0]);
       angle1Max.setDefaultDouble(angle[0][1]);
       angle2Min.setDefaultDouble(angle[1][0]);
@@ -394,8 +412,10 @@ public final class Main {
       hsvValues[1][1] = (int)Math.round(hsvSMax.getDouble(hsvValues[1][1]));
       hsvValues[2][0] = (int)Math.round(hsvVMin.getDouble(hsvValues[2][0]));
       hsvValues[2][1] = (int)Math.round(hsvVMax.getDouble(hsvValues[2][1]));
-      hwRatio[0] = hwRatioMin.getDouble(hwRatio[0]);
-      hwRatio[1] = hwRatioMax.getDouble(hwRatio[1]);
+      hwRatio[0][0] = hwRatio1Min.getDouble(hwRatio[0][0]);
+      hwRatio[0][1] = hwRatio1Max.getDouble(hwRatio[0][1]);
+      hwRatio[1][0] = hwRatio2Min.getDouble(hwRatio[1][0]);
+      hwRatio[1][1] = hwRatio2Max.getDouble(hwRatio[1][1]);
       angle[0][0] = angle1Min.getDouble(angle[0][0]);
       angle[0][1] = angle1Max.getDouble(angle[0][1]);
       angle[1][0] = angle2Min.getDouble(angle[1][0]);
